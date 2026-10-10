@@ -1,6 +1,6 @@
 // 離線快取：有網路時抓最新版並更新快取，沒網路時用快取
 // 改了檔案清單時，把版本號 +1
-const CACHE = 'tetris-v4';
+const CACHE = 'tetris-v5';
 const FILES = [
   './',
   './index.html',

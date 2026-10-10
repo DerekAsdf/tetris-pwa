@@ -13,7 +13,8 @@
   const LONG_PRESS_MS = 200;  // 按住超過 0.2 秒算長按
   const REPEAT_MS = 100;      // 之後每 0.1 秒移動一格
   const COUNTDOWN_MS = 3000;
-  const HARD_DROP_LOCK_MS = 1200; // 硬降後還能左右移動或旋轉的時間，每次成功移動或旋轉都重新計算
+  const HARD_DROP_LOCK_MS = 600; // 硬降後還能左右移動或旋轉的時間，每次成功移動或旋轉都重新計算
+  const MAX_LOCK_RESETS = 10;    // 最多重新計算幾次，超過就不再延長
   const REPEATABLE = new Set(['left', 'right', 'down']);
 
   const COLORS = {
@@ -57,6 +58,7 @@
   let elapsed = 0;     // 實際遊玩時間（毫秒，不含暫停與倒數）
   let gravityAcc = 0;
   let lockDelay = 0;   // 硬降後的剩餘緩衝時間（毫秒），0 表示不在緩衝期
+  let lockResets = 0;  // 這個方塊已經重新計算幾次
   let countdownLeft = 0;
   let timeUp = false;
   const held = new Map(); // action -> 下一次連續移動的時間
@@ -187,12 +189,13 @@
         // 先落到底，緩衝時間到了才固定
         game.dropToBottom();
         lockDelay = HARD_DROP_LOCK_MS;
+        lockResets = 0;
         break;
     }
     if (game.over) endGame();
   }
 
-  // 硬降後的緩衝期：可以左右移動、旋轉（移動後仍貼著底部），成功的話重新倒數；
+  // 硬降後的緩衝期：可以左右移動、旋轉（移動後仍貼著底部），成功的話重新倒數（最多 10 次）；
   // 再按硬降或向下就立刻固定
   function doLandedAction(action) {
     let moved = false;
@@ -207,7 +210,10 @@
         return;
     }
     game.dropToBottom();
-    if (moved) lockDelay = HARD_DROP_LOCK_MS;
+    if (moved && lockResets < MAX_LOCK_RESETS) {
+      lockResets++;
+      lockDelay = HARD_DROP_LOCK_MS;
+    }
   }
 
   function lockNow() {
