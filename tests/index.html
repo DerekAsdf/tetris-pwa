@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Core Tests</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #111318; color: #eee; padding: 16px; }
+    .pass { color: #4fd66b; } .fail { color: #ef4b4b; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>核心邏輯測試（不需要 Node，直接用瀏覽器開）</h2>
+  <div id="out"></div>
+  <script src="../js/core.js"></script>
+  <script>
+    // 讓 core.test.js 在瀏覽器執行的最小替身
+    const allTests = [];
+    function same(a, b) {
+      if (Object.is(a, b)) return true;
+      if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => same(v, b[i]));
+      return false;
+    }
+    const shimAssert = {
+      equal(a, b) { if (!Object.is(a, b)) throw new Error(`expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); },
+      deepEqual(a, b) { if (!same(a, b)) throw new Error(`expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); },
+      ok(v) { if (!v) throw new Error('expected truthy'); },
+    };
+    function require(name) {
+      if (name === 'node:test') return (title, fn) => allTests.push([title, fn]);
+      if (name === 'node:assert/strict') return shimAssert;
+      return window.TetrisCore;
+    }
+    const module = {};
+  </script>
+  <script src="core.test.js"></script>
+  <script>
+    const out = document.getElementById('out');
+    let failed = 0;
+    for (const [title, fn] of allTests) {
+      const div = document.createElement('div');
+      try { fn(); div.className = 'pass'; div.textContent = '✔ ' + title; }
+      catch (e) { failed++; div.className = 'fail'; div.textContent = '✘ ' + title + '\n   ' + e.message; }
+      out.appendChild(div);
+    }
+    const sum = document.createElement('h3');
+    sum.textContent = failed ? `${failed} / ${allTests.length} 失敗` : `全部 ${allTests.length} 項通過`;
+    out.prepend(sum);
+    window.__result = { total: allTests.length, failed };
+  </script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tetris">
+  <meta name="theme-color" content="#111318">
+  <title>Tetris</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 主畫面 -->
+  <section id="home" class="screen">
+    <div class="mode-box">
+      <button class="mode" data-mode="classic" type="button">
+        <span class="mode-name">CLASSIC</span>
+        <span class="record" id="rec-classic"></span>
+      </button>
+      <button class="mode" data-mode="timer" type="button">
+        <span class="mode-name">TIMER</span>
+        <span class="record" id="rec-timer"></span>
+      </button>
+    </div>
+
+    <div class="speed-title">SPEED (sec/per block)</div>
+    <div class="speed-row">
+      <span id="speed-value">1sec</span>
+      <div class="speed-arrows">
+        <button id="speed-up" type="button" aria-label="增加秒數">
+          <svg viewBox="0 0 24 14"><path d="M2 12 L12 2 L22 12 Z"/></svg>
+        </button>
+        <button id="speed-down" type="button" aria-label="減少秒數">
+          <svg viewBox="0 0 24 14"><path d="M2 2 L12 12 L22 2 Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <button id="start-btn" type="button">START</button>
+  </section>
+
+  <!-- 遊戲畫面 -->
+  <section id="play" class="screen hidden">
+    <div id="field-area">
+      <div id="field">
+        <div id="board-wrap">
+          <canvas id="board"></canvas>
+          <div id="overlay" class="hidden">
+            <button id="resume-big" type="button" aria-label="繼續">
+              <svg viewBox="0 0 40 48"><path d="M4 4 L36 24 L4 44 Z"/></svg>
+            </button>
+            <div id="countdown" class="hidden"></div>
+          </div>
+        </div>
+        <aside id="side">
+          <div class="box"><div class="label">SCORE</div><div id="score" class="value">0</div></div>
+          <div class="box"><div class="label">TIME</div><div id="time" class="value">0:00</div></div>
+          <div class="box next">
+            <div class="label">NEXT</div>
+            <canvas id="next"></canvas>
+          </div>
+          <button id="pause-btn" type="button" aria-label="暫停">
+            <svg class="icon-pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16"/><rect x="14" y="4" width="5" height="16"/></svg>
+            <svg class="icon-play" viewBox="0 0 24 24"><path d="M6 4 L20 12 L6 20 Z"/></svg>
+          </button>
+        </aside>
+
+        <!-- 結算畫面 -->
+        <div id="gameover" class="hidden">
+          <div class="go-title">GAMEOVER</div>
+          <div class="go-label">SCORE</div>
+          <div id="go-score" class="go-value">0</div>
+          <div class="go-label">TIME</div>
+          <div id="go-time" class="go-value">0:00</div>
+          <div id="go-best" class="go-best hidden">NEW BEST!</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bottom">
+      <!-- 遊戲中的操作鍵 -->
+      <div id="controls">
+        <div class="dpad">
+          <button class="ctl" data-action="drop" style="grid-area: drop" type="button" aria-label="直接落底">
+            <svg viewBox="0 0 40 40"><path d="M6 4 H34 L20 18 Z M6 20 H34 L20 34 Z"/></svg>
+          </button>
+          <button class="ctl" data-action="left" style="grid-area: left" type="button" aria-label="向左">
+            <svg viewBox="0 0 40 40"><path d="M4 20 L18 6 V14 H36 V26 H18 V34 Z"/></svg>
+          </button>
+          <button class="ctl" data-action="right" style="grid-area: right" type="button" aria-label="向右">
+            <svg viewBox="0 0 40 40"><path d="M36 20 L22 6 V14 H4 V26 H22 V34 Z"/></svg>
+          </button>
+          <button class="ctl" data-action="down" style="grid-area: down" type="button" aria-label="向下">
+            <svg viewBox="0 0 40 40"><path d="M20 36 L6 22 H14 V4 H26 V22 H34 Z"/></svg>
+          </button>
+        </div>
+        <button class="ctl rotate" data-action="rotate" type="button" aria-label="順時針旋轉">
+          <svg viewBox="0 0 48 48" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 22 A14 14 0 0 1 36 15"/>
+            <path d="M37 6 L36 15 L27 14"/>
+            <path d="M38 26 A14 14 0 0 1 12 33"/>
+            <path d="M11 42 L12 33 L21 34"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 暫停 / 結算時的選項 -->
+      <div id="menu-controls" class="hidden">
+        <div class="menu-buttons">
+          <button id="home-btn" type="button" aria-label="回主畫面">
+            <svg viewBox="0 0 40 40"><path d="M20 4 L36 18 H29 V36 H11 V18 H4 Z"/></svg>
+          </button>
+          <button id="restart-btn" type="button" aria-label="重新開始">
+            <svg viewBox="0 0 40 40"><rect x="6" y="5" width="6" height="30"/><path d="M34 5 V35 L13 20 Z"/></svg>
+          </button>
+        </div>
+        <div class="menu-speed">
+          <div>SPEED</div>
+          <div id="menu-speed-value">1sec/block</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/core.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
