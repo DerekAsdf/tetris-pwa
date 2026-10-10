@@ -13,7 +13,7 @@
   const LONG_PRESS_MS = 200;  // 按住超過 0.2 秒算長按
   const REPEAT_MS = 100;      // 之後每 0.1 秒移動一格
   const COUNTDOWN_MS = 3000;
-  const HARD_DROP_LOCK_MS = 1000; // 硬降後還能左右移動或旋轉的時間
+  const HARD_DROP_LOCK_MS = 1200; // 硬降後還能左右移動或旋轉的時間，每次成功移動或旋轉都重新計算
   const REPEATABLE = new Set(['left', 'right', 'down']);
 
   const COLORS = {
@@ -192,12 +192,14 @@
     if (game.over) endGame();
   }
 
-  // 硬降後的緩衝期：可以左右移動、旋轉（移動後仍貼著底部）；再按硬降或向下就立刻固定
+  // 硬降後的緩衝期：可以左右移動、旋轉（移動後仍貼著底部），成功的話重新倒數；
+  // 再按硬降或向下就立刻固定
   function doLandedAction(action) {
+    let moved = false;
     switch (action) {
-      case 'left': game.moveLeft(); break;
-      case 'right': game.moveRight(); break;
-      case 'rotate': game.rotate(); break;
+      case 'left': moved = game.moveLeft(); break;
+      case 'right': moved = game.moveRight(); break;
+      case 'rotate': moved = game.rotate() > 0; break;
       case 'down':
       case 'drop':
         held.delete('down');
@@ -205,6 +207,7 @@
         return;
     }
     game.dropToBottom();
+    if (moved) lockDelay = HARD_DROP_LOCK_MS;
   }
 
   function lockNow() {
