@@ -77,42 +77,88 @@ test('O 以右下格為中心旋轉（形狀不變但位置會移動）', () => 
 //   90 度 → (1,0)(0,0)(0,1)(0,2)
 //  180 度 → (0,1)(0,0)(-1,0)(-2,0)
 //  270 度 → (-1,0)(0,0)(0,-1)(0,-2)
-function jAt(dy) {
-  const j = new Game({ rng: rngFor(['J']) });
-  for (let i = 0; i < dy; i++) j.softDrop();
-  return [j, j.current.x, j.current.y];
+const J0 = [[0, -1], [0, 0], [1, 0], [2, 0]];
+const J180 = [[0, 1], [0, 0], [-1, 0], [-2, 0]];
+const J270 = [[-1, 0], [0, 0], [0, -1], [0, -2]];
+
+// 把 J 放在 (cx, cy)，棋盤除了 free（相對座標）以外全部填滿，讓踢牆也推不動
+function jBoxed(free) {
+  const g = new Game({ rng: rngFor(['J']) });
+  const cx = 4, cy = 10;
+  g.current.x = cx;
+  g.current.y = cy;
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) g.board[y][x] = 'X';
+  for (const [dx, dy] of free) g.board[cy + dy][cx + dx] = null;
+  return [g, cx, cy];
 }
+const abs = (cx, cy, rel) => rel.map(([dx, dy]) => [cx + dx, cy + dy]);
 
-test('90 度被擋住時改轉 180 度', () => {
-  const [j, cx, cy] = jAt(2);
-  j.board[cy + 2][cx] = 'X'; // 只擋 90 度
-  assert.equal(j.rotate(), 2);
-  assert.deepEqual(sorted(j.currentCells()), sorted([[cx, cy + 1], [cx, cy], [cx - 1, cy], [cx - 2, cy]]));
+test('90 度（含踢牆）放不下時改轉 180 度', () => {
+  const [g, cx, cy] = jBoxed([...J0, ...J180]);
+  assert.equal(g.rotate(), 2);
+  assert.deepEqual(sorted(g.currentCells()), sorted(abs(cx, cy, J180)));
 });
 
-test('90、180 都被擋住時改轉 270 度；全部被擋住就不動', () => {
-  const [j, cx, cy] = jAt(2);
-  j.board[cy + 1][cx] = 'X'; // 擋 90 與 180 度
-  assert.equal(j.rotate(), 3);
-  assert.deepEqual(sorted(j.currentCells()), sorted([[cx - 1, cy], [cx, cy], [cx, cy - 1], [cx, cy - 2]]));
-
-  const [k, kx, ky] = jAt(2);
-  k.board[ky + 1][kx] = 'X';
-  k.board[ky][kx - 1] = 'X'; // 再擋 270 度
-  const before = sorted(k.currentCells());
-  assert.equal(k.rotate(), 0);
-  assert.deepEqual(sorted(k.currentCells()), before);
+test('90、180 度都放不下時改轉 270 度', () => {
+  const [g, cx, cy] = jBoxed([...J0, ...J270]);
+  assert.equal(g.rotate(), 3);
+  assert.deepEqual(sorted(g.currentCells()), sorted(abs(cx, cy, J270)));
 });
 
-test('不踢牆：靠牆旋轉被擋住時不位移', () => {
+test('全部放不下就不動', () => {
+  const [g] = jBoxed(J0);
+  const before = sorted(g.currentCells());
+  assert.equal(g.rotate(), 0);
+  assert.deepEqual(sorted(g.currentCells()), before);
+});
+
+test('踢牆：直立 I 貼左牆旋轉，會往右推進棋盤', () => {
   const g = new Game({ rng: rngFor(['I']) });
   g.softDrop(); g.softDrop(); g.softDrop();
-  g.rotate(); // 直立，中心 x=5
+  g.rotate(); // 直立
   while (g.moveLeft());
-  const x = g.current.x;
+  assert.equal(g.current.x, 0);
+  assert.equal(g.rotate(), 1);
+  const cells = g.currentCells();
+  assert.ok(cells.every(([x]) => x >= 0 && x < COLS));
+  assert.equal(new Set(cells.map(([, y]) => y)).size, 1); // 變回橫的
+});
+
+test('踢牆：直立 I 貼右牆旋轉，會往左推進棋盤', () => {
+  const g = new Game({ rng: rngFor(['I']) });
+  g.softDrop(); g.softDrop(); g.softDrop();
   g.rotate();
-  assert.equal(g.current.x, x);
-  for (const [cx] of g.currentCells()) assert.ok(cx >= 0 && cx < COLS);
+  while (g.moveRight());
+  assert.equal(g.rotate(), 1);
+  assert.ok(g.currentCells().every(([x]) => x >= 0 && x < COLS));
+});
+
+test('踢牆：貼地旋轉時往上推', () => {
+  const g = new Game({ rng: rngFor(['T']) });
+  g.dropToBottom(); // 中心在最底列
+  assert.equal(g.current.y, ROWS - 1);
+  assert.equal(g.rotate(), 1);
+  assert.equal(g.current.y, ROWS - 2);
+  assert.ok(g.currentCells().every(([, y]) => y < ROWS));
+});
+
+test('dropToBottom 落到底但不鎖定，之後仍可移動', () => {
+  const g = new Game({ rng: rngFor(['O', 'T']) });
+  const d = g.dropToBottom();
+  assert.equal(d, ROWS - 2);
+  assert.equal(g.current.type, 'O');
+  assert.ok(g.board[ROWS - 1].every((c) => !c));
+  assert.equal(g.moveLeft(), true);
+  g.hardDrop();
+  assert.equal(g.board[ROWS - 1][3], 'O');
+  assert.equal(g.current.type, 'T');
+});
+
+test('落點預覽在方塊正下方的落地位置', () => {
+  const g = new Game({ rng: rngFor(['O']) });
+  g.board[ROWS - 1][4] = 'X';
+  assert.deepEqual(sorted(g.ghostCells()), sorted([[4, 17], [5, 17], [4, 18], [5, 18]]));
+  assert.equal(g.current.y, 1); // 方塊本身沒動
 });
 
 test('左右移動被牆擋住', () => {

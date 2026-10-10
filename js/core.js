@@ -126,20 +126,60 @@
     moveRight() { return this.move(1); }
 
     /**
-     * 順時針轉 90 度；被擋住就改試 180 度、再試 270 度，都不行就不動（不踢牆）。
+     * 踢牆：旋轉後被擋住時，依序嘗試的位移。
+     * 先往離最近的牆較遠的方向推，再試另一邊，最後往上推（貼地旋轉用）。
+     */
+    kickOffsets() {
+      const s = this.current.x < COLS / 2 ? 1 : -1;
+      return [[0, 0], [s, 0], [-s, 0], [2 * s, 0], [-2 * s, 0], [0, -1], [s, -1], [-s, -1]];
+    }
+
+    /**
+     * 順時針轉 90 度（可踢牆）；90 度怎麼推都放不下，就改試 180 度、再試 270 度，都不行就不動。
      * @returns {number} 實際轉了幾個 90 度（0 表示沒轉）
      */
     rotate() {
       if (this.over) return 0;
       const p = this.current;
+      const kicks = this.kickOffsets();
       for (let times = 1; times <= 3; times++) {
         const cells = rotateTimes(p.cells, times);
-        if (!this.collides(cells, p.x, p.y)) {
-          p.cells = cells;
-          return times;
+        for (const [kx, ky] of kicks) {
+          if (!this.collides(cells, p.x + kx, p.y + ky)) {
+            p.cells = cells;
+            p.x += kx;
+            p.y += ky;
+            return times;
+          }
         }
       }
       return 0;
+    }
+
+    /** 方塊直接落下時的 y（不移動方塊） */
+    landingY() {
+      const p = this.current;
+      let y = p.y;
+      while (!this.collides(p.cells, p.x, y + 1)) y++;
+      return y;
+    }
+
+    /** 落點位置的格子（用來畫落點預覽） */
+    ghostCells() {
+      if (!this.current || this.over) return [];
+      const { x, cells } = this.current;
+      const y = this.landingY();
+      return cells.map(([dx, dy]) => [x + dx, y + dy]);
+    }
+
+    /** 落到底但不鎖定（硬降後的緩衝期使用）。回傳下降格數 */
+    dropToBottom() {
+      if (this.over) return 0;
+      const p = this.current;
+      const y = this.landingY();
+      const distance = y - p.y;
+      p.y = y;
+      return distance;
     }
 
     /**
@@ -165,12 +205,7 @@
     /** 直接落到底並鎖定 */
     hardDrop() {
       if (this.over) return { distance: 0, cleared: 0 };
-      const p = this.current;
-      let distance = 0;
-      while (!this.collides(p.cells, p.x, p.y + 1)) {
-        p.y += 1;
-        distance++;
-      }
+      const distance = this.dropToBottom();
       const cleared = this.lock();
       return { distance, cleared };
     }

@@ -13,6 +13,7 @@
   const LONG_PRESS_MS = 200;  // 按住超過 0.2 秒算長按
   const REPEAT_MS = 100;      // 之後每 0.1 秒移動一格
   const COUNTDOWN_MS = 3000;
+  const HARD_DROP_LOCK_MS = 300; // 硬降後還能左右移動或旋轉的時間
   const REPEATABLE = new Set(['left', 'right', 'down']);
 
   const COLORS = {
@@ -55,6 +56,7 @@
   let state = 'home'; // home | playing | paused | countdown | over
   let elapsed = 0;     // 實際遊玩時間（毫秒，不含暫停與倒數）
   let gravityAcc = 0;
+  let lockDelay = 0;   // 硬降後的剩餘緩衝時間（毫秒），0 表示不在緩衝期
   let countdownLeft = 0;
   let timeUp = false;
   const held = new Map(); // action -> 下一次連續移動的時間
@@ -92,6 +94,7 @@
     game = new Game();
     elapsed = 0;
     gravityAcc = 0;
+    lockDelay = 0;
     timeUp = false;
     held.clear();
     state = 'playing';
@@ -166,6 +169,10 @@
   // ---------- 操作 ----------
   function doAction(action) {
     if (state !== 'playing') return;
+    if (lockDelay > 0) {
+      doLandedAction(action);
+      return;
+    }
     switch (action) {
       case 'left': game.moveLeft(); break;
       case 'right': game.moveRight(); break;
@@ -177,10 +184,33 @@
         break;
       }
       case 'drop':
-        game.hardDrop();
-        gravityAcc = 0;
+        // 先落到底，緩衝時間到了才固定
+        game.dropToBottom();
+        lockDelay = HARD_DROP_LOCK_MS;
         break;
     }
+    if (game.over) endGame();
+  }
+
+  // 硬降後的緩衝期：可以左右移動、旋轉（移動後仍貼著底部）；再按硬降或向下就立刻固定
+  function doLandedAction(action) {
+    switch (action) {
+      case 'left': game.moveLeft(); break;
+      case 'right': game.moveRight(); break;
+      case 'rotate': game.rotate(); break;
+      case 'down':
+      case 'drop':
+        held.delete('down');
+        lockNow();
+        return;
+    }
+    game.dropToBottom();
+  }
+
+  function lockNow() {
+    lockDelay = 0;
+    gravityAcc = 0;
+    game.hardDrop();
     if (game.over) endGame();
   }
 
@@ -227,6 +257,9 @@
         elapsed = TIMER_MS;
         timeUp = true;
         endGame();
+      } else if (lockDelay > 0) {
+        lockDelay -= dt;
+        if (lockDelay <= 0) lockNow();
       } else {
         gravityAcc += dt;
         const interval = speed * 100;
@@ -308,6 +341,7 @@
       }
     }
     if (!game.over && game.current) {
+      drawGhost();
       const color = COLORS[game.current.type];
       for (const [x, y] of game.currentCells()) {
         if (y >= 0) drawBlock(bctx, x * cell, y * cell, cell, color);
@@ -317,6 +351,21 @@
     drawNext();
     $('score').textContent = String(game.score);
     $('time').textContent = timeText(false);
+  }
+
+  // 落點預覽：灰色虛線框
+  function drawGhost() {
+    const occupied = new Set(game.currentCells().map(([x, y]) => x + ',' + y));
+    const inset = Math.max(2, cell * 0.12);
+    bctx.save();
+    bctx.strokeStyle = 'rgba(200, 204, 212, 0.75)';
+    bctx.lineWidth = Math.max(1.5, cell * 0.06);
+    bctx.setLineDash([Math.max(3, cell * 0.16), Math.max(2, cell * 0.1)]);
+    for (const [x, y] of game.ghostCells()) {
+      if (y < 0 || occupied.has(x + ',' + y)) continue;
+      bctx.strokeRect(x * cell + inset, y * cell + inset, cell - 2 * inset, cell - 2 * inset);
+    }
+    bctx.restore();
   }
 
   function drawNext() {
