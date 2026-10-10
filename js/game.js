@@ -13,7 +13,7 @@
   const LONG_PRESS_MS = 200;  // 按住超過 0.2 秒算長按
   const REPEAT_MS = 100;      // 之後每 0.1 秒移動一格
   const COUNTDOWN_MS = 3000;
-  const HARD_DROP_LOCK_MS = 300; // 硬降後還能左右移動或旋轉的時間
+  const HARD_DROP_LOCK_MS = 1000; // 硬降後還能左右移動或旋轉的時間
   const REPEATABLE = new Set(['left', 'right', 'down']);
 
   const COLORS = {

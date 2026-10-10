@@ -73,13 +73,13 @@ test('O 以右下格為中心旋轉（形狀不變但位置會移動）', () => 
   assert.deepEqual(sorted(g.currentCells()), sorted([[5, 2], [6, 2], [5, 3], [6, 3]]));
 });
 
-// J 出現時：中心 (cx, cy)，格子相對位置 (0,-1)(0,0)(1,0)(2,0)
-//   90 度 → (1,0)(0,0)(0,1)(0,2)
-//  180 度 → (0,1)(0,0)(-1,0)(-2,0)
-//  270 度 → (-1,0)(0,0)(0,-1)(0,-2)
-const J0 = [[0, -1], [0, 0], [1, 0], [2, 0]];
-const J180 = [[0, 1], [0, 0], [-1, 0], [-2, 0]];
-const J270 = [[-1, 0], [0, 0], [0, -1], [0, -2]];
+// J 出現時：中心 (cx, cy) 為下排中間格，格子相對位置 (-1,-1)(-1,0)(0,0)(1,0)
+//   90 度 → (1,-1)(0,-1)(0,0)(0,1)
+//  180 度 → (1,1)(1,0)(0,0)(-1,0)
+//  270 度 → (-1,1)(0,1)(0,0)(0,-1)
+const J0 = [[-1, -1], [-1, 0], [0, 0], [1, 0]];
+const J180 = [[1, 1], [1, 0], [0, 0], [-1, 0]];
+const J270 = [[-1, 1], [0, 1], [0, 0], [0, -1]];
 
 // 把 J 放在 (cx, cy)，棋盤除了 free（相對座標）以外全部填滿，讓踢牆也推不動
 function jBoxed(free) {
@@ -100,7 +100,9 @@ test('90 度（含踢牆）放不下時改轉 180 度', () => {
 });
 
 test('90、180 度都放不下時改轉 270 度', () => {
-  const [g, cx, cy] = jBoxed([...J0, ...J270]);
+  // 只空出 270 度的位置（目前所在的格子不在棋盤上，不影響判定），
+  // 否則 90 度踢牆後就放得下
+  const [g, cx, cy] = jBoxed(J270);
   assert.equal(g.rotate(), 3);
   assert.deepEqual(sorted(g.currentCells()), sorted(abs(cx, cy, J270)));
 });
@@ -207,4 +209,26 @@ test('soft drop 到底時鎖定', () => {
   do r = g.softDrop(); while (r.moved);
   assert.equal(r.locked, true);
   assert.equal(g.board[19][4], 'O');
+});
+
+test('L、J 以下排中間格為中心旋轉', () => {
+  const l = new Game({ rng: rngFor(['L']) });
+  l.softDrop(); l.softDrop();
+  const [lx, ly] = [l.current.x, l.current.y];
+  assert.deepEqual(sorted(l.currentCells()), sorted([[lx + 1, ly - 1], [lx - 1, ly], [lx, ly], [lx + 1, ly]]));
+  l.rotate();
+  assert.deepEqual(sorted(l.currentCells()), sorted([[lx + 1, ly + 1], [lx, ly - 1], [lx, ly], [lx, ly + 1]]));
+
+  const j = new Game({ rng: rngFor(['J']) });
+  j.softDrop(); j.softDrop();
+  const [jx, jy] = [j.current.x, j.current.y];
+  j.rotate();
+  assert.deepEqual(sorted(j.currentCells()), sorted([[jx + 1, jy - 1], [jx, jy - 1], [jx, jy], [jx, jy + 1]]));
+});
+
+test('L、J 出現在頂端中央', () => {
+  const l = new Game({ rng: rngFor(['L']) });
+  assert.deepEqual(sorted(l.currentCells()), sorted([[5, 0], [3, 1], [4, 1], [5, 1]]));
+  const j = new Game({ rng: rngFor(['J']) });
+  assert.deepEqual(sorted(j.currentCells()), sorted([[3, 0], [3, 1], [4, 1], [5, 1]]));
 });

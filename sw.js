@@ -1,6 +1,6 @@
 // 離線快取：有網路時抓最新版並更新快取，沒網路時用快取
 // 改了檔案清單時，把版本號 +1
-const CACHE = 'tetris-v2';
+const CACHE = 'tetris-v3';
 const FILES = [
   './',
   './index.html',
@@ -29,9 +29,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  // no-cache：每次都向伺服器確認是否有新版（避開瀏覽器自己的 HTTP 快取）
   event.respondWith(
-    fetch(req)
+    fetch(req.url, { cache: 'no-cache' })
       .then((res) => {
+        // Safari 不接受 service worker 回傳轉址過的頁面，複製成一般回應
+        if (res.redirected) {
+          res = new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+        }
         if (res.ok) {
           const copy = res.clone();
           caches.open(CACHE).then((cache) => cache.put(req, copy));
