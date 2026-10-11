@@ -3,15 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Game, COLS, ROWS, TYPES, rotateCW } = require('../js/core.js');
 
-// 依序回傳指定種類的亂數產生器
-function rngFor(types) {
-  let i = 0;
-  return () => {
-    const t = types[i++ % types.length];
-    return (TYPES.indexOf(t) + 0.5) / TYPES.length;
-  };
-}
-
 function sorted(cells) {
   return cells.map((c) => c.join(',')).sort();
 }
@@ -33,33 +24,50 @@ test('順時針旋轉公式 (dx, dy) -> (-dy, dx)', () => {
   assert.deepEqual(rotateCW([[0, 1]]), [[-1, 0]]);
 });
 
-test('預覽佇列永遠有兩個方塊，取出後補上', () => {
-  const g = new Game({ rng: rngFor(['I', 'O', 'T', 'S', 'Z']) });
+test('預覽佇列永遠有 5 個方塊，取出後補上', () => {
+  const g = new Game({ sequence: ['I', 'O', 'T', 'S', 'Z', 'L', 'J'] });
   assert.equal(g.current.type, 'I');
-  assert.deepEqual(g.getNext(), ['O', 'T']);
+  assert.deepEqual(g.getNext(), ['O', 'T', 'S', 'Z', 'L']);
   g.hardDrop();
   assert.equal(g.current.type, 'O');
-  assert.deepEqual(g.getNext(), ['T', 'S']);
+  assert.deepEqual(g.getNext(), ['T', 'S', 'Z', 'L', 'J']);
+});
+
+test('7-bag：每連續 7 個方塊（從第 1 個起算）7 種各出現一次', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    let x = seed;
+    const rng = () => ((x = (x * 16807) % 2147483647) / 2147483647);
+    const g = new Game({ rng });
+    const seen = [g.current.type];
+    while (seen.length < 70) {
+      const before = g.getNext()[0];
+      g.spawn();
+      seen.push(before);
+    }
+    for (let b = 0; b < 70; b += 7) {
+      assert.deepEqual(seen.slice(b, b + 7).sort(), TYPES.slice().sort());
+    }
+  }
 });
 
 test('出現在頂端中央', () => {
-  const g = new Game({ rng: rngFor(['I']) });
+  const g = new Game({ sequence: ['I'] });
   assert.deepEqual(sorted(g.currentCells()), sorted([[3, 0], [4, 0], [5, 0], [6, 0]]));
-  const t = new Game({ rng: rngFor(['T']) });
+  const t = new Game({ sequence: ['T'] });
   assert.deepEqual(sorted(t.currentCells()), sorted([[4, 0], [3, 1], [4, 1], [5, 1]]));
-  const o = new Game({ rng: rngFor(['O']) });
+  const o = new Game({ sequence: ['O'] });
   assert.deepEqual(sorted(o.currentCells()), sorted([[4, 0], [5, 0], [4, 1], [5, 1]]));
 });
 
 test('I 以左數第 3 格為中心旋轉', () => {
-  const g = new Game({ rng: rngFor(['I']) });
+  const g = new Game({ sequence: ['I'] });
   g.softDrop(); g.softDrop(); g.softDrop(); // 中心移到 (5, 3)
   assert.equal(g.rotate(), 1);
   assert.deepEqual(sorted(g.currentCells()), sorted([[5, 1], [5, 2], [5, 3], [5, 4]]));
 });
 
 test('T 以下排中間格為中心旋轉', () => {
-  const g = new Game({ rng: rngFor(['T']) });
+  const g = new Game({ sequence: ['T'] });
   g.softDrop(); // 中心 (4, 2)
   g.rotate();
   // 凸出的格子從上方轉到右方
@@ -67,7 +75,7 @@ test('T 以下排中間格為中心旋轉', () => {
 });
 
 test('O 以右下格為中心旋轉（形狀不變但位置會移動）', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   g.softDrop(); g.softDrop(); // 中心 (5, 3)
   g.rotate();
   assert.deepEqual(sorted(g.currentCells()), sorted([[5, 2], [6, 2], [5, 3], [6, 3]]));
@@ -83,7 +91,7 @@ const J270 = [[-1, 1], [0, 1], [0, 0], [0, -1]];
 
 // 把 J 放在 (cx, cy)，棋盤除了 free（相對座標）以外全部填滿，讓踢牆也推不動
 function jBoxed(free) {
-  const g = new Game({ rng: rngFor(['J']) });
+  const g = new Game({ sequence: ['J'] });
   const cx = 4, cy = 10;
   g.current.x = cx;
   g.current.y = cy;
@@ -115,7 +123,7 @@ test('全部放不下就不動', () => {
 });
 
 test('踢牆：直立 I 貼左牆旋轉，會往右推進棋盤', () => {
-  const g = new Game({ rng: rngFor(['I']) });
+  const g = new Game({ sequence: ['I'] });
   g.softDrop(); g.softDrop(); g.softDrop();
   g.rotate(); // 直立
   while (g.moveLeft());
@@ -127,7 +135,7 @@ test('踢牆：直立 I 貼左牆旋轉，會往右推進棋盤', () => {
 });
 
 test('踢牆：直立 I 貼右牆旋轉，會往左推進棋盤', () => {
-  const g = new Game({ rng: rngFor(['I']) });
+  const g = new Game({ sequence: ['I'] });
   g.softDrop(); g.softDrop(); g.softDrop();
   g.rotate();
   while (g.moveRight());
@@ -136,7 +144,7 @@ test('踢牆：直立 I 貼右牆旋轉，會往左推進棋盤', () => {
 });
 
 test('踢牆：貼地旋轉時往上推', () => {
-  const g = new Game({ rng: rngFor(['T']) });
+  const g = new Game({ sequence: ['T'] });
   g.dropToBottom(); // 中心在最底列
   assert.equal(g.current.y, ROWS - 1);
   assert.equal(g.rotate(), 1);
@@ -145,7 +153,7 @@ test('踢牆：貼地旋轉時往上推', () => {
 });
 
 test('dropToBottom 落到底但不鎖定，之後仍可移動', () => {
-  const g = new Game({ rng: rngFor(['O', 'T']) });
+  const g = new Game({ sequence: ['O', 'T'] });
   const d = g.dropToBottom();
   assert.equal(d, ROWS - 2);
   assert.equal(g.current.type, 'O');
@@ -157,14 +165,14 @@ test('dropToBottom 落到底但不鎖定，之後仍可移動', () => {
 });
 
 test('落點預覽在方塊正下方的落地位置', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   g.board[ROWS - 1][4] = 'X';
   assert.deepEqual(sorted(g.ghostCells()), sorted([[4, 17], [5, 17], [4, 18], [5, 18]]));
   assert.equal(g.current.y, 1); // 方塊本身沒動
 });
 
 test('左右移動被牆擋住', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   let n = 0;
   while (g.moveLeft()) n++;
   assert.equal(n, 4);
@@ -173,7 +181,7 @@ test('左右移動被牆擋住', () => {
 
 test('計分：消 1/2/3/4 列 = 10/25/40/55', () => {
   for (const [n, score] of [[1, 10], [2, 25], [3, 40], [4, 55]]) {
-    const g = new Game({ rng: rngFor(['I']) });
+    const g = new Game({ sequence: ['I'] });
     g.rotate(); // 直立 I，佔 x=5，y 從 -2 到 1
     for (let i = 0; i < n; i++) fillRow(g, ROWS - 1 - i, [5]);
     const r = g.hardDrop();
@@ -185,7 +193,7 @@ test('計分：消 1/2/3/4 列 = 10/25/40/55', () => {
 });
 
 test('消行後上方的列往下掉', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   fillRow(g, 19, [4, 5]);
   g.board[18][0] = 'X';
   g.hardDrop(); // O 填 (4,18)(5,18)(4,19)(5,19) → 消第 19 列
@@ -196,7 +204,7 @@ test('消行後上方的列往下掉', () => {
 });
 
 test('出生位置被佔用就結束', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   for (let y = 2; y < ROWS; y++) fillRow(g, y, [0]);
   g.hardDrop();
   g.hardDrop();
@@ -204,7 +212,7 @@ test('出生位置被佔用就結束', () => {
 });
 
 test('soft drop 到底時鎖定', () => {
-  const g = new Game({ rng: rngFor(['O']) });
+  const g = new Game({ sequence: ['O'] });
   let r;
   do r = g.softDrop(); while (r.moved);
   assert.equal(r.locked, true);
@@ -212,14 +220,14 @@ test('soft drop 到底時鎖定', () => {
 });
 
 test('L、J 以下排中間格為中心旋轉', () => {
-  const l = new Game({ rng: rngFor(['L']) });
+  const l = new Game({ sequence: ['L'] });
   l.softDrop(); l.softDrop();
   const [lx, ly] = [l.current.x, l.current.y];
   assert.deepEqual(sorted(l.currentCells()), sorted([[lx + 1, ly - 1], [lx - 1, ly], [lx, ly], [lx + 1, ly]]));
   l.rotate();
   assert.deepEqual(sorted(l.currentCells()), sorted([[lx + 1, ly + 1], [lx, ly - 1], [lx, ly], [lx, ly + 1]]));
 
-  const j = new Game({ rng: rngFor(['J']) });
+  const j = new Game({ sequence: ['J'] });
   j.softDrop(); j.softDrop();
   const [jx, jy] = [j.current.x, j.current.y];
   j.rotate();
@@ -227,8 +235,8 @@ test('L、J 以下排中間格為中心旋轉', () => {
 });
 
 test('L、J 出現在頂端中央', () => {
-  const l = new Game({ rng: rngFor(['L']) });
+  const l = new Game({ sequence: ['L'] });
   assert.deepEqual(sorted(l.currentCells()), sorted([[5, 0], [3, 1], [4, 1], [5, 1]]));
-  const j = new Game({ rng: rngFor(['J']) });
+  const j = new Game({ sequence: ['J'] });
   assert.deepEqual(sorted(j.currentCells()), sorted([[3, 0], [3, 1], [4, 1], [5, 1]]));
 });

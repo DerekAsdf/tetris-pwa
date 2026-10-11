@@ -313,8 +313,14 @@
     cell = Math.max(8, Math.floor(Math.min(w / (COLS + 4.4), h / ROWS)));
     document.documentElement.style.setProperty('--c', cell + 'px');
     sizeCanvas(boardCanvas, bctx, cell * COLS, cell * ROWS);
+    // NEXT 畫布填滿側欄剩下的高度：先縮到最小，量出 NEXT 區塊可用的高度再放大
     const nw = Math.floor(cell * 4.4) - 8;
-    sizeCanvas(nextCanvas, nctx, nw, Math.floor(cell * 5.6));
+    sizeCanvas(nextCanvas, nctx, nw, 1);
+    const box = nextCanvas.parentElement;
+    const bs = getComputedStyle(box);
+    const avail = box.clientHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom)
+      - box.querySelector('.label').offsetHeight - parseFloat(getComputedStyle(nextCanvas).marginTop);
+    sizeCanvas(nextCanvas, nctx, nw, Math.max(cell * 3, Math.floor(avail)));
     if (game) draw();
   }
 
@@ -382,9 +388,10 @@
     const w = nextCanvas.width / dpr;
     const h = nextCanvas.height / dpr;
     nctx.clearRect(0, 0, w, h);
-    const size = Math.floor(cell * 0.7);
-    const slotH = h / 2;
-    game.getNext().forEach((type, i) => {
+    const next = game.getNext();
+    const slotH = h / next.length;
+    const size = Math.max(4, Math.floor(Math.min(cell * 0.62, slotH / 2.6, (w - 8) / 4)));
+    next.forEach((type, i) => {
       const cells = SHAPES[type];
       const xs = cells.map((c) => c[0]);
       const ys = cells.map((c) => c[1]);

@@ -37,7 +37,7 @@
   // 一次消除 n 列的得分
   const LINE_SCORES = [0, 10, 25, 40, 55];
 
-  const PREVIEW_COUNT = 2;
+  const PREVIEW_COUNT = 5;
 
   function rotateCW(cells) {
     return cells.map(([dx, dy]) => [-dy, dx]);
@@ -49,8 +49,25 @@
     return out;
   }
 
-  function randomType(rng) {
-    return TYPES[Math.floor(rng() * TYPES.length)];
+  /** 7-bag：每 7 個方塊為一袋，7 種各出現一次，袋內順序隨機 */
+  function bagGenerator(rng) {
+    let bag = [];
+    return () => {
+      if (bag.length === 0) {
+        bag = TYPES.slice();
+        for (let i = bag.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+      }
+      return bag.shift();
+    };
+  }
+
+  /** 依固定順序循環產生（測試用） */
+  function sequenceGenerator(types) {
+    let i = 0;
+    return () => types[i++ % types.length];
   }
 
   function emptyBoard() {
@@ -60,30 +77,33 @@
   class Game {
     /**
      * @param {object} [opts]
-     * @param {() => number} [opts.rng] 回傳 [0, 1) 的亂數函式，測試時可替換
+     * @param {() => number} [opts.rng] 回傳 [0, 1) 的亂數函式，用來洗 7-bag
+     * @param {string[]} [opts.sequence] 改用固定順序循環出方塊（測試用）
      */
     constructor(opts = {}) {
-      this.rng = opts.rng || Math.random;
+      this.nextType = opts.sequence
+        ? sequenceGenerator(opts.sequence)
+        : bagGenerator(opts.rng || Math.random);
       this.board = emptyBoard();
       this.queue = [];
       this.score = 0;
       this.lines = 0;
       this.over = false;
       this.current = null;
-      for (let i = 0; i < PREVIEW_COUNT; i++) this.queue.push(randomType(this.rng));
+      for (let i = 0; i < PREVIEW_COUNT; i++) this.queue.push(this.nextType());
       this.spawn();
     }
 
-    /** 接下來兩個方塊的種類 */
+    /** 接下來 PREVIEW_COUNT 個方塊的種類 */
     getNext() {
       return this.queue.slice();
     }
 
-    /** 從佇列取出下一個方塊放到頂端中央，並補一個新的隨機方塊（完全隨機，不使用 7-bag） */
+    /** 從佇列取出下一個方塊放到頂端中央，並從 7-bag 補一個新的 */
     spawn(type) {
       if (!type) {
         type = this.queue.shift();
-        this.queue.push(randomType(this.rng));
+        this.queue.push(this.nextType());
       }
       const cells = SHAPES[type].map((c) => c.slice());
       const xs = cells.map((c) => c[0]);
